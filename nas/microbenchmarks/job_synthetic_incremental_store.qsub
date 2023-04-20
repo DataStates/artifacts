@@ -1,0 +1,30 @@
+#!/usr/bin/bash
+#PBS -l select=1:ngpus=1:ncpus=1
+#PBS -l filesystems=grand
+#PBS -l walltime=5:00
+#PBS -A VeloC
+#PBS -q debug
+
+num_servers=1
+tasks=1
+result_dir='/lus/grand/projects/VeloC/datastates/sc_microbenchmarks_1gpus/'
+file_dir='/lus/grand/projects/VeloC/datastates/sc_microbenchmarks_1gpus_hdf5_models/'
+
+REPO_DIR=$HOME/experiments
+INIT_SCRIPT=$HOME/experiments/init-dh-environment2.sh
+cd $REPO_DIR
+source $INIT_SCRIPT
+
+echo $(which python)
+if [ ! -d $result_dir ]
+then
+mkdir $result_dir
+fi
+
+if [ ! -d $file_dir ]
+then
+mkdir $file_dir
+fi
+
+#NOTE: change run_storemb_bash_hdf5.sh to run_storemb_bash.sh for datastates
+/opt/cray/pe/pals/1.1.7/bin/aprun -n $(($tasks + $num_servers)) -d 1 ./microbenchmarks/run_storemb_bash_hdf5.sh $num_servers $tasks $result_dir $file_dir

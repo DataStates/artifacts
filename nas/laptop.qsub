@@ -1,0 +1,4 @@
+#!/bin/bash
+
+export COBALT_NODEFILE=/etc/hostname
+./deephyper-1gpu-mpi.qsub

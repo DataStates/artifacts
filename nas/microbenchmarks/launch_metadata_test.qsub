@@ -1,0 +1,20 @@
+#!/bin/bash
+#COBALT -A VeloC -n 16 -t 2:00:00 -q full-node
+
+export PATH=/lus/theta-fs0/software/thetagpu/conda/2021-09-22/mconda3/condabin:/lus/theta-fs0/software/thetagpu/cuda/nccl_2.9.9-1+cuda11.0_x86_64/include:/soft/interpreters/python/anaconda/anaconda3/2019.07/bin:/lus/theta-fs0/software/thetagpu/openmpi-4.0.5/ucx-1.9.0rc7/bin:/lus/theta-fs0/software/thetagpu/openmpi-4.0.5/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/dbhome/db2cat/sqllib/bin:/dbhome/db2cat/sqllib/adm:/dbhome/db2cat/sqllib/misc:/home/runderwood/bin
+export LD_LIBRARY_PATH=/lus/theta-fs0/software/thetagpu/cuda/TensorRT-8.0.0.3.Linux.x86_64-gnu.cuda-11.3.cudnn8.2/lib:/lus/theta-fs0/software/thetagpu/cuda/nccl_2.9.9-1+cuda11.0_x86_64/lib:/lus/theta-fs0/software/thetagpu/cuda/cudnn-11.3-linux-x64-v8.2.0.53/lib64:/usr/local/cuda-11.3/lib64:/lus/theta-fs0/software/thetagpu/openmpi-4.0.5/ucx-1.9.0rc7/lib:/lus/theta-fs0/software/thetagpu/openmpi-4.0.5/lib:/dbhome/db2cat/sqllib/lib64:/dbhome/db2cat/sqllib/lib64/gskit:/dbhome/db2cat/sqllib/lib32
+
+#module load conda/2021-09-22 
+conda activate deephyper
+
+mapfile -t nodes_array -d '\n' < $COBALT_NODEFILE
+head_node=${nodes_array[0]}
+redishost=$(dig $head_node a +short | awk 'FNR==2')
+
+for models in 2 4 8
+do
+for cores in 8 16 32 64 128 256
+do
+mpirun -hostfile $COBALT_NODEFILE -np $cores --bynode python -m mpi4py ./mock_model_bench_mpi.py --models_10k=$models --host=$redishost --port=7000
+done
+done

@@ -1,0 +1,56 @@
+#!/usr/bin/bash
+#PBS -l select=2:ngpus=4
+#PBS -l filesystems=grand
+#PBS -l walltime=60:00
+#PBS -A VeloC
+#PBS -j oe
+#PBS -q debug
+#PBS -m abe
+#PBS -M runderwood@anl.gov
+
+cd $PBS_O_WORKDIR
+source ~/.bashrc
+source init-dh-environment2.sh
+
+
+EXP_DIR=$(pwd)
+
+tasks=1
+backend=datastates
+server_tasks=1
+population="seq-10"
+
+
+set -x
+
+mkdir ${SAVE_BASE_DIR}
+
+for full_model in 0 1
+do
+for backend in datastates redis
+do
+for tasks in 1 2 4
+do
+for server_tasks in 1 2 4
+do
+
+if [[ $server_tasks -ne 1 && "$backend" == "redis" ]]; then continue; fi
+
+for models_10k in 1 6
+do
+for population in "seq-10" "seq-50" "skip-10" "skip-50"
+do
+echo "====tasks=$tasks==backend=$backend==server_tasks=$server_tasks==population=$population========"
+output_dir="${SAVE_BASE_DIR}/p$population-t$tasks-s$server_tasks-m$models_10k-$backend-full-$full_model"
+if mkdir $output_dir; then
+$mpilaunch -n $(( $tasks + 1 )) $mpilaunchenv ./run_client.sh $backend $population $output_dir $models_10k $full_model : -n $server_tasks ./run_server.sh $backend
+else
+    echo "skipping $output_dir"
+fi
+echo "================================================================================"
+done
+done
+done
+done
+done
+done

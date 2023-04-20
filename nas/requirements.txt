@@ -1,0 +1,5 @@
+tensorflow-gpu==2.4
+networkx
+redis
+deephyper==0.4.2
+deepspace

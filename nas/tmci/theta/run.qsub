@@ -1,0 +1,10 @@
+#!/bin/bash
+#COBALT -n 1
+#COBALT -t 0:15:00
+#COBALT --mode script
+#COBALT -q debug-flat-quad 
+
+source `dirname "$0"`/common.sh
+me=`basename "$0"`
+
+aprun -n 1 -N 1 python example/lenet5.py

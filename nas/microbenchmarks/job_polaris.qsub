@@ -1,0 +1,22 @@
+#!/usr/bin/bash
+#PBS -l select=2
+#PBS -l filesystems=grand
+#PBS -l walltime=5:00
+#PBS -A VeloC
+#PBS -q debug
+
+TOTAL_SIZE='1m'
+VARIANCE=0
+NUM_LAYERS=5
+SZ='small'
+
+REPO_DIR=$HOME/experiments
+EXP_DIR=$HOME/experiments/microbenchmarks
+CPP_STORE_DIR=$HOME/experiments/cpp-store
+INIT_SCRIPT=$HOME/experiments/init-dh-environment2.sh
+
+cd $REPO_DIR
+source $INIT_SCRIPT
+SERVER_CMD="./cpp-store/server --thallium_connection_string "ofi+verbs" --num_threads 2 --storage_backend "map""
+echo $(which python)
+$mpilaunch -n 1 $mpilaunchenv $(which python) -m mpi4py ./microbenchmarks/polaris_basic_microbenchmarks_test.py --num_layers $NUM_LAYERS --total_size $TOTAL_SIZE --size_relative $SZ --variance $VARIANCE : -n 1 $SERVER_CMD   

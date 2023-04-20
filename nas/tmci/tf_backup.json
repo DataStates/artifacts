@@ -1,0 +1,7 @@
+{
+    "libraries" : [ ":libtensorflow_framework.so.2" , ":_pywrap_tensorflow_internal.so" ],
+    "library_dirs" : ["/home/mmadhya1/dh-trial/lib/python3.8/site-packages/tensorflow", "/home/mmadhya1/dh-trial/lib/python3.8/site-packages/tensorflow/python"],
+    "include_dirs" : ["/home/mmadhya1/dh-trial/lib/python3.8/site-packages/tensorflow/include"],
+    "extra_cxxflags" : []
+}
+

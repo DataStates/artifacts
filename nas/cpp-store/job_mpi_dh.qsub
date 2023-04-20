@@ -1,0 +1,51 @@
+#!/bin/bash
+#COBALT -A VeloC
+#COBALT -n 2
+#COBALT -t 0:10:00
+#COBALT -q debug
+#COBALT --mode script
+
+#set -eu
+
+# note: disable registration cache for verbs provider for now; see
+#       discussion in https://github.com/ofiwg/libfabric/issues/5244
+export FI_MR_CACHE_MAX_COUNT=0
+# use shared recv context in RXM; should improve scalability
+export FI_OFI_RXM_USE_SRX=1
+export LD_LIBRARY_PATH=$HOME/install/lib64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$HOME/install/lib:$LD_LIBRARY_PATH
+
+#which mpiexec
+#which mpirun
+mapfile -t nodes_array -d '\n' < $COBALT_NODEFILE
+echo "node array: $nodes_array"
+
+head_node=${nodes_array[0]}
+mpirun --hosts $head_node -n 1 ./server "ofi+verbs" &
+
+#set +eu
+sleep 1
+
+#if [ -f /etc/bashrc ]; then
+#        . /etc/bashrc
+#fi
+
+echo "reached here 1"
+EXP_DIR=$HOME/experiments
+
+echo "reached here 2"
+INIT_SCRIPT=$EXP_DIR/init_script.sh
+
+
+echo "reached here 3"
+source $INIT_SCRIPT
+CPUS_PER_NODE=12
+GPUS_PER_NODE=1
+echo "head node: $head_node"
+client_node=${nodes_array[1]}
+#nodes_arr_client=(${nodes_array[1]} ${nodes_array[2]})
+
+NUM_NODES=1
+RANKS_PER_NODE=2
+cd $EXP_DIR
+mpiexec -n $(( $NUM_NODES * $RANKS_PER_NODE )) --hosts $client_node $(which python) -m mpi4py /home/mmadhya1/experiments/transfer_learn.py --load_data_mode mpicomm --application synthetic --test_data_path /home/mmadhya1/experiments/nt_test2.csv --train_data_path /home/mmadhya1/experiments/nt_train2.csv

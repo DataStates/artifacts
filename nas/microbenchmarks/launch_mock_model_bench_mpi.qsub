@@ -1,0 +1,41 @@
+#!/bin/bash
+#PBS -l walltime=8:00:00
+#PBS -l select=5:ncpus=40:ngpus=2:gpu_model=v100:mpiprocs=32:mem=370gb
+#PBS -j oe
+#PBS -m abe
+#PBS -M robertu@g.clemson.edu
+
+cd /home/robertu/scratch/experiments
+source ./init-dh-environment2.sh
+
+
+echo_do() {
+  echo "$@"
+  "$@"
+}
+
+for method in redis
+do
+for readers in 1 5 10 20 40 80 160
+do
+for models_10k in 1 6
+do
+for model_type in skip-50 seq-50 skip-10 seq-10
+do
+for matches in 0 50 100
+do
+
+killall redis-server
+rm -f *.rdb
+echo redis ${readers}r-${model_type}-${matches}m-${models_10k}k
+echo_do mpiexec -np $readers python -m mpi4py ./mock_model_bench_mpi.py \
+        --trace_dir $exp_dir/tests/${model_type}/${matches}/store \
+        --query_trace_dir $exp_dir/tests/${model_type}/${matches}/query/ \
+        --output_dir $exp_dir/results/method-${method}-readers-${readers}-model-${model_type}-matches-${matches}-${models_10k}-in_db/ \
+        --transfer_method ${method} \
+        --models_10k $models_10k
+done
+done
+done
+done
+done

@@ -1,0 +1,84 @@
+#!/bin/bash
+#COBALT -A VeloC
+#COBALT -q full-node
+#COBALT -n 1
+#COBALT -t 720
+#COBALT -M runderwood@anl.gov
+#COBALT --attrs enable_ssh=1:filesystems=home,theta-fs0
+
+# User Configuration
+EXP_DIR=$PWD
+SERVER_PROCS=1
+COBALT_JOBSIZE=${COBALT_JOBSIZE:-1}
+# Initialization of environment
+INIT_SCRIPT="$EXP_DIR/init-dh-environment2.sh"
+source "$INIT_SCRIPT"
+
+for procs in 2 4 8
+do
+for backend in datastates redis
+do
+for app in synthetic mnist nt3 
+do
+for beta in 1 10 50
+do
+for repl in 1 2 3
+do
+export CPUS_PER_NODE=$procs
+export GPUS_PER_NODE=${GPUS_PER_NODE:=1}
+SAVE_DIR=$SAVE_BASE_DIR/mpi-app-${app}-beta-${beta}-gpus-${procs}-repl-${repl}/
+
+echo_do () {
+  echo "$@"
+  $@
+}
+
+if mkdir "$SAVE_DIR"
+then
+    echo "starting, $SAVE_DIR"
+else
+    echo "exists skipping, $SAVE_DIR"
+    continue
+fi
+
+echo $SAVE_DIR
+
+
+case "$app" in
+    nt3)
+        TRAIN_DIR=$EXP_DIR/datahere/nt_train2.csv
+        TEST_DIR=$EXP_DIR/datahere/nt_test2.csv
+      ;;
+    synthetic)
+        TRAIN_DIR="ignored"
+        TEST_DIR="ignored"
+      ;;
+    *)
+        TRAIN_DIR="ignored"
+        TEST_DIR="ignored"
+        echo "train/test not set"
+    ;;
+esac
+
+case "$backend" in
+  redis)
+    SERVER_CMD="${EXP_DIR}/servers/redis.py"
+    ;;
+  datastates)
+    SERVER_CMD="${EXP_DIR}/cpp-store/build/server --thallium_connection_string "$THALLIUM_NETWORK" --num_threads 2"
+    ;;
+esac
+
+echo_do $mpilaunch -n $(( COBALT_JOBSIZE * $procs)) \
+    --hostfile $COBALT_NODEFILE $(which python) -m mpi4py ./transfer_learn-mpi.py --num_gpus_per_task 1 --beta $beta \
+    --search_attempts 20 --num_epochs 1 --application $app --sample_size 10 --population_size 11 \
+    --train_data_path="$TRAIN_DIR" --test_data_path="$TEST_DIR" --candle_problem_size large --transfer_method $backend \
+    --save_result_dir="$SAVE_DIR" --load_data_mode mpicomm --rand_seed="$repl" --debug : -n ${SERVER_PROCS} ${SERVER_CMD}
+
+sleep 10
+
+done
+done
+done
+done
+done

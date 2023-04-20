@@ -1,0 +1,209 @@
+from ..transfer_methods import TransferMethod, TransferNoop
+from collections import defaultdict
+from deephyper.nas.node import VariableNode
+from deephyper.problem import NaProblem
+from deephyper.search.nas import RegularizedEvolution
+from deephyper.evaluator import Evaluator
+from typing import List, Optional
+import networkx as nx
+import numpy as np
+import uuid
+
+def _transfer_name(config):
+    return "-".join(str(i) for i in config["arch_seq"])
+
+def _transfer_name_uuid():
+    return uuid.uuid4().hex
+
+def compute_weights(graph, filter_fn=lambda x: True, beta=1):
+    """compute the weights to use when determining where to allocate a mutation
+
+    First, we determine generations, by counting how many nodes would be invalidated by changing this node
+    Next, we assign weights to each generation as a linear weight between 1 and β
+    Then within a generation we weigh each option equally.
+
+    Choosing β=1 weighs all generations equally, larger values of β result in greater weight to the end layers
+    """
+    invalidate_count_to_nodes = defaultdict(list)
+    for node in filter(filter_fn, graph):
+        invalidate_count_to_nodes[len(nx.descendants(graph, node))].append(node)
+    invalidate_count_to_gen_size = {
+        gen: len(nodes) for gen, nodes in invalidate_count_to_nodes.items()
+    }
+    generations = len(invalidate_count_to_nodes)
+    # compute the linearly distributed weights weights
+    weights = np.linspace(1, beta, generations, endpoint=True)
+    weights /= weights.sum()
+    invalidate_count_to_weight = dict(
+        zip(sorted(invalidate_count_to_nodes, reverse=True), weights)
+    )
+    node_probablility = {}
+    for invalidate_count, nodes in invalidate_count_to_nodes.items():
+        gen_size = invalidate_count_to_gen_size[invalidate_count]
+        weight = invalidate_count_to_weight[invalidate_count]
+        propability = 1 / gen_size * weight
+        for node in nodes:
+            node_probablility[node] = propability
+    node_probablility
+    weights = [node_probablility[node] for node in filter(filter_fn, graph)]
+    return weights
+
+
+class ExpiringRegularizedEvolution(RegularizedEvolution):
+    """`Regularized evolution <https://arxiv.org/abs/1802.01548>`_ neural architecture search.
+    This search is only compatible with a ``NaProblem`` that has fixed hyperparameters.
+
+    Args:
+        problem (NaProblem): Neural architecture search problem describing the search space to explore.
+        evaluator (Evaluator): An ``Evaluator`` instance responsible of distributing the tasks.
+        random_state (int, optional): Random seed. Defaults to None.
+        log_dir (str, optional): Log directory where search's results are saved. Defaults to ".".
+        verbose (int, optional): Indicate the verbosity level of the search. Defaults to 0.
+        population_size (int, optional): the number of individuals to keep in the population. Defaults to 100.
+        sample_size (int, optional): the number of individuals that should participate in each tournament.
+            Defaults to 10.
+    """
+
+    def __init__(
+        self,
+        problem: NaProblem,
+        evaluator: Evaluator,
+        random_state: int = 1,
+        log_dir: str = ".",
+        verbose: int = 0,
+        population_size: int = 100,
+        sample_size: int = 10,
+        beta: Optional[float] = None,
+        rand_seed: int = 0,
+        transfer_method: TransferMethod = TransferNoop(),
+        **kwargs,
+    ):
+
+        super().__init__(
+            problem,
+            evaluator,
+            random_state,
+            log_dir,
+            verbose,
+            population_size,
+            sample_size,
+            seed=rand_seed,
+        )
+
+        self._transfer_method = transfer_method
+
+        def is_vnode(node):
+            return isinstance(node, VariableNode)
+
+        space = problem.build_search_space(seed=rand_seed)
+
+        if beta is not None:
+            self._mutate_weights = compute_weights(
+                space.graph, filter_fn=is_vnode, beta=beta
+            )
+        else:
+            self._mutate_weights = None
+
+
+
+    def _search(self, max_evals, timeout):
+
+        if len(self._problem._hp_space._space) > 0:
+            raise ValueError(
+                """An hyperparameter space was defined for this problem but the current search
+                is not compatible with joint hyperparameter and neural architecture search.
+                Constant values should be defined for hyperparameters."""
+            )
+
+        num_evals_done = 0
+
+        # Filling available nodes at start
+        batch = self._gen_random_batch(size=self._evaluator.num_workers)
+        self._evaluator.submit(batch)
+
+        # Main loop
+        while max_evals < 0 or num_evals_done < max_evals:
+
+            # Collecting finished evaluations
+            new_results = self._evaluator.gather("BATCH", 1)
+            num_received = len(new_results)
+            if num_received > 0:
+                #if num_received + len(self._population) > self._population.maxlen:
+                    #for i in range(
+                    #    num_received + len(self._population) - self._population.maxlen
+                    #):
+                    #    killed = self._population.popleft()
+                        # TODO this isn't correct, don't do this yet
+                    #    self._transfer_method.retire_model(
+                    #        _transfer_name(killed.config)
+                    #    )
+                self._population.extend(new_results)
+                self._evaluator.dump_evals(
+                    saved_keys=self._saved_keys, log_dir=self._log_dir
+                )
+                num_evals_done += num_received
+
+                if num_evals_done >= max_evals:
+                    break
+
+                # If the population is big enough evolve the population
+                if len(self._population) == self._population_size:
+                    children_batch = []
+                    # For each new parent/result we create a child from it
+                    for _ in range(num_received):
+                        # select_sample
+                        indexes = self._random_state.choice(
+                            self._population_size, self._sample_size, replace=False
+                        )
+                        sample = [self._population[i] for i in indexes]
+                        # select_parent
+                        parent = self._select_parent(sample)
+                        # copy_mutate_parent
+                        child = self._copy_mutate_arch(parent)
+                        # add child to batch
+                        children_batch.append(child)
+
+                    # submit_childs
+                    self._evaluator.submit(children_batch)
+
+                else:  # If the population is too small keep increasing it
+                    self._evaluator.submit(self._gen_random_batch(size=num_received))
+
+
+    def _gen_random_batch(self, size: int) -> list:
+        batch = []
+        for _ in range(size):
+            cfg = self.pb_dict.copy()
+            cfg["arch_seq"] = self._random_search_space()
+            cfg["to_transfer"] = False
+            batch.append(cfg)
+        return batch
+
+
+    def _copy_mutate_arch(self, parent_arch: List[str]) -> dict:
+        """
+        # ! Time performance is critical because called sequentialy
+        Args:
+            parent_arch (list(int)): [description]
+        Returns:
+            dict: [description]
+        """
+        i = self._random_state.choice(len(parent_arch), p=self._mutate_weights)
+        child_arch = parent_arch[:]
+
+        range_upper_bound = self.space_list[i][1]
+        elements = [j for j in range(range_upper_bound + 1) if j != child_arch[i]]
+
+        # The mutation has to create a different search_space!
+        sample = self._random_state.choice(elements, 1)[0]
+
+        child_arch[i] = sample
+        cfg = self.pb_dict.copy()
+        cfg["arch_seq"] = child_arch
+        cfg["model_id"] = _transfer_name_uuid()
+        cfg["parent"] = "-".join(str(i) for i in parent_arch)
+        cfg["to_transfer"] = True
+        self._transfer_method.retain(
+            cfg["parent"], "-".join(str(i) for i in cfg["arch_seq"])
+        )
+        return cfg

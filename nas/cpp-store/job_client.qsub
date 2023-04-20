@@ -1,0 +1,29 @@
+#!/bin/bash
+#COBALT -n 1
+#COBALT -t 00:30:00
+#COBALT --mode script
+#COBALT -q it 
+
+set -eu
+
+echo "Setting up environment modules"
+module use /soft/modulefiles
+module load spack/linux-opensuse_leap15-x86_64
+module load gcc
+module load intelmpi/2019-gcc
+
+echo "Setting up spack"
+source $HOME/spack/share/spack/setup-env.sh
+#spack repo add /home/mmadhyastha/mochi-spack-packages
+spack load mochi-thallium
+spack load py-pip
+spack load python@3.8
+#spack load py-mpi4py
+source /home/mmadhyastha/experiments/bin/activate
+#spack add libfabric fabrics=rxm,verbs,tcp,sockets
+echo "Starting benchmark"
+
+time mpirun -np 1 -f ${COBALT_NODEFILE} ./client "ofi+tcp;ofi_rxm://10.17.6.123:44813"
+
+echo "Done!"
+
