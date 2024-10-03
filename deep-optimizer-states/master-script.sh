@@ -221,7 +221,7 @@ set_model_size() {
 # m:H:F:N:L:U:S:K:T:M:B:R:G:P:D:A:O:
 
 ############### Run for basic tests
-set_model_size 3
+set_model_size 7
 D=1                 # Set data-parallelism=1 to run on single GPU
 B=$((M * D ))       # Global batch = Micro-batch* DP-degree
 # Run for vanilla DeepSpeed
