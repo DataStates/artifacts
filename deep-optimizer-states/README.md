@@ -100,8 +100,8 @@ cd $MASTER_BASEPATH/deep-optimizer-states-artifact
 
 bash master-script.sh
 
-# Quickly evaluate how iteration times accelerate with Deep Optimizer States
-python quick-parse-results.py --vanilla-deepspeed $MASTER_BASEPATH/dl-io/log-7B-tp1-dp1-l32-h4096-a32-sl2048-gbs1-mbs1-ratio1-subg10000000-prefetch0-flush_async0-opt_gaps0.log --deep-optimizer-states log-7B-tp1-dp1-l32-h4096-a32-sl2048-gbs1-mbs1-ratio1-subg10000000-prefetch1-flush_async1-opt_gaps2.log
+# Quickly evaluate how iteration times accelerate with Deep Optimizer States (using sample-logs)
+python quick-parse-results.py --vanilla-deepspeed $MASTER_BASEPATH/deep-optimizer-states-artifact/deep-optimizer-states/sample-logs/deep-optimizer-states-output-7B/log-7B-tp1-dp1-l32-h4096-a32-sl2048-gbs1-mbs1-ratio1-subg10000000-prefetch0-flush_async0-opt_gaps0.log --deep-optimizer-states $MASTER_BASEPATH/deep-optimizer-states-artifact/deep-optimizer-states/sample-logs/deep-optimizer-states-output-7B/log-7B-tp1-dp1-l32-h4096-a32-sl2048-gbs1-mbs1-ratio1-subg10000000-prefetch1-flush_async1-opt_gaps2.log
 
 ```
 
