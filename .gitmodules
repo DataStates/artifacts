@@ -1,0 +1,8 @@
+[submodule "mlp-offload/DeepSpeed"]
+	path = mlp-offload/DeepSpeed
+	url = https://github.com/DataStates/DeepSpeed.git
+	branch = dist_nvme_opt
+[submodule "mlp-offload/Megatron-DeepSpeed"]
+	path = mlp-offload/Megatron-DeepSpeed
+	url = https://github.com/mauryaavinash95/Megatron-DeepSpeed
+	branch = dist_nvme_opt
