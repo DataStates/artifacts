@@ -1,0 +1,8 @@
+[submodule "Megatron-DeepSpeed"]
+	path = Megatron-DeepSpeed
+	url = https://github.com/mauryaavinash95/Megatron-DeepSpeed
+	branch = dist_nvme_opt
+[submodule "DeepSpeed"]
+	path = DeepSpeed
+	url = https://github.com/DataStates/DeepSpeed.git
+	branch = dist_nvme_opt
